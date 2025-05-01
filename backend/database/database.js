@@ -6,12 +6,11 @@ dotenv.config();
 const { Pool } = pg;
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
-const query = (text, params) => pool.query(text, params);
+const query = async (text, params) => await pool.query(text, params);
 export default query;

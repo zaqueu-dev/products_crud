@@ -1,41 +1,61 @@
 import * as productService from "./products.js";
-import query from "./database/database.js";
+import http from "http";
+import { parse } from "url";
 
-async function testCRUD() {
-  try {
-    // 1. Criar tabela
-    await productService.createTable();
-    console.log("✅ Tabela criada com sucesso");
+const PORT = process.env.PORT || 3000;
 
-    // 2. Adicionar produtos
-    await productService.addProduct({ name: "Notebook", price: 4500.0 });
-    await productService.addProduct({ name: "Smartphone", price: 2500.0 });
-    console.log("✅ Produtos adicionados");
+const server = http.createServer(async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  const pathname = parse(req.url).pathname;
+  console.log("Request received for:", pathname);
 
-    // 3. Listar todos os produtos
-    const allProducts = await productService.getProducts();
-    console.log("📦 Todos os produtos:", allProducts);
-
-    // 4. Buscar um produto específico
-    const firstProduct = allProducts[0];
-    const productById = await productService.getProductById(firstProduct.id);
-    console.log("🔍 Produto por ID:", productById);
-
-    // 5. Atualizar um produto
-    await productService.updateProduct(firstProduct.id, {
-      name: "Notebook Premium",
-      price: 5000.0,
-    });
-    const updatedProduct = await productService.getProductById(firstProduct.id);
-    console.log("🔄 Produto atualizado:", updatedProduct);
-
-    // 6. Deletar um produto
-    await productService.deleteProduct(firstProduct.id);
-    const remainingProducts = await productService.getProducts();
-    console.log("🗑️ Produtos restantes:", remainingProducts);
-  } catch (error) {
-    console.error("❌ Erro durante os testes:", error);
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    return res.end();
   }
-}
 
-testCRUD();
+  if (pathname === "/" && req.method === "GET") {
+    console.log("Handling GET request");
+    const products = await productService.getProducts();
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(products));
+  } else if (pathname === "/" && req.method === "POST") {
+    console.log("Handling POST request");
+
+    let body = "";
+
+    req.on("data", (chunk) => (body += chunk));
+
+    req.on("end", async () => {
+      try {
+        console.log("Body received:", body);
+        const data = JSON.parse(body);
+        const { name, price } = data;
+
+        if (name === undefined || price === undefined) {
+          res.writeHead(400, { "content-type": "application/json" });
+          return res.end(
+            JSON.stringify({ error: "Missing one or more fields" })
+          );
+        }
+        await productService.addProduct({ name, price });
+        console.log("Produto adicionado com sucesso");
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ message: "Produto adicionado com sucesso" }));
+      } catch (error) {
+        console.log("Erro:", error);
+        res.writeHead(500, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "Erro ao processar o produto" }));
+      }
+    });
+  } else {
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "Rota não encontrada" }));
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
